@@ -6,7 +6,7 @@ contract ProofOfTransit{
     /* DEV SETTINGS */
 
     address private controller;
-    string private egress_edge;
+    address private egress_edge;
     string private current_routeID;
     
     mapping(string => string) public probHash;
@@ -16,12 +16,11 @@ contract ProofOfTransit{
         uint probeFailAmount;
         uint probeNullAmount;
         uint probeSuccessAmount;
-        uint probeTotal;
     }
 
     struct pastRouteConfig {
         string route_id;
-        string egress_edge;
+        address egress_edge;
         uint last_timestamp;
     }
 
@@ -29,23 +28,22 @@ contract ProofOfTransit{
 
     event ControllerSet(address indexed oldController, address indexed newController);
 
-    modifier isController() {
-        require(msg.sender == controller, "Caller is not controller");
+    modifier isController(address senderAddr) {
+        require(senderAddr == controller, "Caller is not controller");
         _;
     }
 
     modifier isEgressEdge() {
-        require(msg.sender == controller, "Caller is not egress edge");
+        require(msg.sender == egress_edge, "Caller is not egress edge");
         _;
     }
 
     
-    constructor(address controllerAddr, string memory egress_edgeAddr,string memory routeId) {
+    constructor(address controllerAddr, address egress_edgeAddr,string memory routeId) {
         
         route_id_audit[routeId].probeFailAmount = 0;
         route_id_audit[routeId].probeSuccessAmount = 0;
         route_id_audit[routeId].probeNullAmount = 0;
-        route_id_audit[routeId].probeTotal = 0;
 
         controller = controllerAddr;
         egress_edge = egress_edgeAddr;
@@ -57,12 +55,12 @@ contract ProofOfTransit{
 
 
     /* POT FUNCTIONS */
-    function changeController(address newController) public isController {
+    function changeController(address newController, address senderAddr) public isController(senderAddr) {
         emit ControllerSet(controller, newController);
         controller = newController;
     }
 
-    function changeRouteIdAndEgressEdge(string memory newRouteId,string memory newEgressEdge) public isEgressEdge {
+    function changeRouteIdAndEgressEdge(string memory newRouteId,address newEgressEdge, address senderAddr) public isController(senderAddr) {
         routeIdHistory.push(pastRouteConfig(newRouteId,newEgressEdge,block.timestamp));
         current_routeID = newRouteId;
         egress_edge = newEgressEdge;
@@ -72,7 +70,7 @@ contract ProofOfTransit{
         return controller;
     }
 
-    function setProbeHash(string memory id_x, string memory hash) public isController {
+    function setProbeHash(string memory id_x, string memory hash, address senderAddr) public isController(senderAddr) {
         probHash[id_x] = hash;
     }
 
@@ -87,7 +85,6 @@ contract ProofOfTransit{
             route_id_audit[current_routeID].probeFailAmount += 1;
             emit ProbeFail();
         }
-        route_id_audit[current_routeID].probeTotal += 1
     }
 
     function getCompliance() public view returns (uint,uint,uint) {
@@ -107,7 +104,7 @@ contract PoTFactory{
     mapping(string => ProofOfTransit) private flowPOT;
     mapping(string => address) public flowAddr;
 
-    function newFlow(string memory flowId, string memory egress_edgeAddr, string memory routeId) public{
+    function newFlow(string memory flowId, address egress_edgeAddr, string memory routeId) public{
         ProofOfTransit new_pot = new ProofOfTransit(msg.sender,egress_edgeAddr,routeId);
 
         flowPOT[flowId] = new_pot;
@@ -117,23 +114,20 @@ contract PoTFactory{
     function setFlowProbeHash(string memory flowId, string memory id_x, string memory hash) public{
         ProofOfTransit pot = ProofOfTransit(flowPOT[flowId]);
         
-        pot.setProbeHash(id_x,hash);
+        pot.setProbeHash(id_x,hash,msg.sender);
     }
 
 
-    function setRouteId(string memory flowId,string memory newRouteID, string memory newEgressEdge) public{
+    function setRouteId(string memory flowId,string memory newRouteID, address newEgressEdge) public{
         ProofOfTransit pot = ProofOfTransit(flowPOT[flowId]);
         
        
-        pot.changeRouteIdAndEgressEdge(newRouteID,newEgressEdge);
+        pot.changeRouteIdAndEgressEdge(newRouteID,newEgressEdge,msg.sender);
     }
 
-    function getFlowCompliance(string memory flowId) public view returns (uint,uint,uint){
-        ProofOfTransit pot = ProofOfTransit(flowPOT[flowId]);
 
-        uint success;
-        uint fail;
-        uint nil;
+    function getFlowCompliance(string memory flowId) public view returns (uint success, uint fail, uint nil){
+        ProofOfTransit pot = ProofOfTransit(flowPOT[flowId]);
 
         (success, fail, nil) = pot.getCompliance();
 
