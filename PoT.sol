@@ -16,6 +16,7 @@ contract ProofOfTransit{
         uint probeFailAmount;
         uint probeNullAmount;
         uint probeSuccessAmount;
+        uint probeTotal;
     }
 
     struct pastRouteConfig {
@@ -43,7 +44,8 @@ contract ProofOfTransit{
         
         route_id_audit[routeId].probeFailAmount = 0;
         route_id_audit[routeId].probeSuccessAmount = 0;
-        route_id_audit[routeId].probeSuccessAmount = 0;
+        route_id_audit[routeId].probeNullAmount = 0;
+        route_id_audit[routeId].probeTotal = 0;
 
         controller = controllerAddr;
         egress_edge = egress_edgeAddr;
@@ -85,6 +87,7 @@ contract ProofOfTransit{
             route_id_audit[current_routeID].probeFailAmount += 1;
             emit ProbeFail();
         }
+        route_id_audit[current_routeID].probeTotal += 1
     }
 
     function getCompliance() public view returns (uint,uint,uint) {
@@ -139,15 +142,3 @@ contract PoTFactory{
     }
 
 }
-
-/*
-TODO:
-
-- Auditar cada routeId
-- A -> B -> A : salva historico do A (map)
-
-THINK:
-
-- Que tipo de evento o controlador
-
-*/
